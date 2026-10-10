@@ -45,15 +45,4 @@ GO
 
 ALTER TABLE Emp
     ADD CONSTRAINT fk_emp_porn FOREIGN KEY (PId) REFERENCES Porn(PId);
-GO
-
-SELECT * FROM Porn;
-GO
-
--- If you ever need to rename a table in SSMS, this is the equivalent of RENAME TABLE:
--- EXEC sp_rename 'OldName', 'NewName';
-
--- Cleanup (drop the child table first, because of the foreign keys):
--- DROP TABLE IF EXISTS Emp;
--- DROP TABLE IF EXISTS Porn;
--- DROP TABLE IF EXISTS Departments;
+drop table Empoloyees ;
