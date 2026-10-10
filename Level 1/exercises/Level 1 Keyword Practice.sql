@@ -1,157 +1,179 @@
 -- =====================================================================
--- MySQL Workbench keyword practice on PracticeDB
--- Run the setup script (Departments + Employees) first.
--- Run section by section: select the lines, press Ctrl+Shift+Enter.
--- Needs MySQL 8.0.16+ (for CHECK / DROP CHECK).
+-- SSMS (T-SQL) keyword practice on PracticeDB
+-- Converted from the MySQL Workbench version.
+-- Run the setup script (Departments + Emp + Porn) first.
+-- Run section by section: select the lines, press F5 (or Ctrl+E).
+-- Table name is Emp (not Employees). Email is NOT NULL in Emp.
+-- Needs SQL Server 2017+ (CONCAT_WS, DROP TABLE IF EXISTS).
 -- =====================================================================
 USE PracticeDB;
+GO
 
 -- ---------------------------------------------------------------------
--- 1. AUTO_INCREMENT
+-- 1. IDENTITY  (replaces AUTO_INCREMENT)
 -- ---------------------------------------------------------------------
 CREATE TABLE Demo (
-    DemoID INT AUTO_INCREMENT PRIMARY KEY,
+    DemoID INT IDENTITY(1,1) PRIMARY KEY,
     Note   VARCHAR(50)
 );
 INSERT INTO Demo (Note) VALUES ('a'), ('b'), ('c');
-SELECT LAST_INSERT_ID();                 -- first id of the batch (1)
+SELECT SCOPE_IDENTITY() AS LastId;        -- LAST id of the batch (3), unlike MySQL
 SELECT * FROM Demo;
 
-ALTER TABLE Demo AUTO_INCREMENT = 100;   -- next id will be 100
+DBCC CHECKIDENT ('Demo', RESEED, 99);     -- next id will be 100
 INSERT INTO Demo (Note) VALUES ('d');
 SELECT * FROM Demo;
 
-DELETE FROM Demo;                        -- counter is NOT reset
+DELETE FROM Demo;                         -- counter is NOT reset
 INSERT INTO Demo (Note) VALUES ('e');
-SELECT * FROM Demo;                      -- id 101
+SELECT * FROM Demo;                       -- id 101
 
-TRUNCATE TABLE Demo;                     -- counter IS reset
+TRUNCATE TABLE Demo;                      -- counter IS reset
 INSERT INTO Demo (Note) VALUES ('f');
-SELECT * FROM Demo;                      -- id 1
+SELECT * FROM Demo;                       -- id 1
+
+-- Bonus: insert an explicit value into an identity column
+-- SET IDENTITY_INSERT Demo ON;
+-- INSERT INTO Demo (DemoID, Note) VALUES (500, 'manual');   -- column list is required
+-- SET IDENTITY_INSERT Demo OFF;
 
 -- ---------------------------------------------------------------------
--- 2. LIMIT  (replaces TOP)
+-- 2. TOP  (replaces LIMIT)
 -- ---------------------------------------------------------------------
-SELECT * FROM Employees LIMIT 3;
-SELECT FirstName, Salary FROM Employees ORDER BY Salary DESC LIMIT 3;
+SELECT TOP 3 * FROM Emp;
+SELECT TOP 3 FirstName, Salary FROM Emp ORDER BY Salary DESC;
+SELECT TOP 3 WITH TIES FirstName, Salary FROM Emp ORDER BY Salary DESC;  -- includes ties
 
 -- ---------------------------------------------------------------------
--- 3. LIMIT ... OFFSET  (pagination)
+-- 3. OFFSET ... FETCH  (pagination; ORDER BY is required)
 -- ---------------------------------------------------------------------
-SELECT * FROM Employees ORDER BY EmpID LIMIT 3 OFFSET 3;   -- rows 4-6
-SELECT * FROM Employees ORDER BY EmpID LIMIT 3, 3;         -- same, short form (offset, count)
+SELECT * FROM Emp ORDER BY EmpID OFFSET 3 ROWS FETCH NEXT 3 ROWS ONLY;   -- rows 4-6
+-- There is no short form like LIMIT 3, 3 in SQL Server.
 
 -- ---------------------------------------------------------------------
--- 4. BOOLEAN, TRUE, FALSE
+-- 4. BIT  (replaces BOOLEAN, TRUE, FALSE; use 1 and 0)
 -- ---------------------------------------------------------------------
-SELECT FirstName, IsActive FROM Employees WHERE IsActive = TRUE;
-UPDATE Employees SET IsActive = FALSE WHERE EmpID = 8;
-SELECT FirstName, IsActive FROM Employees WHERE IsActive = FALSE;
-UPDATE Employees SET IsActive = TRUE WHERE EmpID = 8;      -- put it back
+SELECT FirstName, IsActive FROM Emp WHERE IsActive = 1;
+UPDATE Emp SET IsActive = 0 WHERE EmpID = 8;
+SELECT FirstName, IsActive FROM Emp WHERE IsActive = 0;
+UPDATE Emp SET IsActive = 1 WHERE EmpID = 8;        -- put it back
 
 -- ---------------------------------------------------------------------
--- 5. NOW(), CURDATE()
+-- 5. GETDATE(), SYSDATETIME()  (replaces NOW, CURDATE, CURTIME)
 -- ---------------------------------------------------------------------
-SELECT NOW(), CURDATE(), CURTIME();
+SELECT GETDATE()                    AS NowValue,
+       SYSDATETIME()                AS NowPrecise,
+       CAST(GETDATE() AS DATE)      AS TodayDate,
+       CAST(GETDATE() AS TIME)      AS TimeNow;
 
 -- ---------------------------------------------------------------------
--- 6. DEFAULT (CURRENT_DATE)
+-- 6. DEFAULT (CAST(GETDATE() AS DATE))
 -- ---------------------------------------------------------------------
-INSERT INTO Employees (FirstName, LastName, Salary, DeptID)
-VALUES ('Test', 'User', 40000, 1);          -- HireDate and IsActive use defaults
-SELECT EmpID, FirstName, HireDate, IsActive FROM Employees WHERE FirstName = 'Test';
-DELETE FROM Employees WHERE FirstName = 'Test' AND EmpID > 0;
+INSERT INTO Emp (FirstName, LastName, Email, Salary, DeptID)
+VALUES ('Test', 'User', 'test@corp.com', 40000, 1);   -- HireDate and IsActive use defaults
+SELECT EmpID, FirstName, HireDate, IsActive FROM Emp WHERE FirstName = 'Test';
+DELETE FROM Emp WHERE FirstName = 'Test';
 
 -- ---------------------------------------------------------------------
--- 7. CONCAT  (+ only adds numbers in MySQL)
+-- 7. CONCAT  (+ also works for strings in SQL Server)
 -- ---------------------------------------------------------------------
-SELECT CONCAT(FirstName, ' ', LastName) AS FullName FROM Employees;
-SELECT CONCAT(FirstName, ' ', Email) AS NameEmail FROM Employees;   -- any NULL makes the result NULL
-SELECT CONCAT_WS(' | ', FirstName, LastName, Email) FROM Employees; -- skips NULLs
+SELECT CONCAT(FirstName, ' ', LastName) AS FullName FROM Emp;
+SELECT FirstName + ' ' + LastName       AS FullName FROM Emp;       -- NULL makes the result NULL
+SELECT CONCAT(FirstName, ' ', Salary)   AS NameSalary FROM Emp;     -- CONCAT treats NULL as '' (differs from MySQL)
+SELECT FirstName + ' ' + CAST(Salary AS VARCHAR(20)) FROM Emp;      -- + needs a manual CAST for numbers
+SELECT CONCAT_WS(' | ', FirstName, LastName, Email) FROM Emp;       -- skips NULLs
 
 -- ---------------------------------------------------------------------
--- 8. Alias with spaces: backticks
+-- 8. Alias with spaces: square brackets
 -- ---------------------------------------------------------------------
-SELECT FirstName AS `First Name`,
-       Salary * 12 AS `Annual Salary`
-FROM Employees;
+SELECT FirstName AS [First Name],
+       Salary * 12 AS [Annual Salary]
+FROM Emp;
 
 -- ---------------------------------------------------------------------
--- 9. CHAR_LENGTH  (also compare LENGTH = bytes)
+-- 9. LEN and DATALENGTH  (replaces CHAR_LENGTH / LENGTH)
 -- ---------------------------------------------------------------------
-SELECT LastName, CHAR_LENGTH(LastName) AS Chars, LENGTH(LastName) AS Bytes FROM Employees;
+SELECT LastName, LEN(LastName) AS Chars, DATALENGTH(LastName) AS Bytes FROM Emp;
+-- LEN ignores trailing spaces; DATALENGTH counts them.
 
 -- ---------------------------------------------------------------------
--- 10. LOCATE  (+ SUBSTRING to get the email domain)
+-- 10. CHARINDEX  (replaces LOCATE; argument order is (find, text))
 -- ---------------------------------------------------------------------
 SELECT Email,
-       LOCATE('@', Email) AS AtPosition,
-       SUBSTRING(Email, LOCATE('@', Email) + 1) AS Domain
-FROM Employees
+       CHARINDEX('@', Email) AS AtPosition,
+       SUBSTRING(Email, CHARINDEX('@', Email) + 1, LEN(Email)) AS Domain   -- length is required
+FROM Emp
 WHERE Email IS NOT NULL;
 
 -- ---------------------------------------------------------------------
--- 11. IFNULL and COALESCE
+-- 11. ISNULL and COALESCE  (replaces IFNULL)
 -- ---------------------------------------------------------------------
 SELECT FirstName,
-       IFNULL(Salary, 0)               AS SalaryOrZero,
-       COALESCE(Email, 'no-email')     AS EmailOrText
-FROM Employees;
+       ISNULL(Salary, 0)             AS SalaryOrZero,
+       COALESCE(Email, 'no-email')   AS EmailOrText
+FROM Emp;
 
 -- ---------------------------------------------------------------------
--- 12. TIMESTAMPDIFF
+-- 12. DATEDIFF  (replaces TIMESTAMPDIFF; counts boundaries crossed)
 -- ---------------------------------------------------------------------
 SELECT FirstName, HireDate,
-       TIMESTAMPDIFF(YEAR,  HireDate, CURDATE()) AS YearsOfService,
-       TIMESTAMPDIFF(MONTH, HireDate, CURDATE()) AS MonthsOfService
-FROM Employees
-ORDER BY YearsOfService DESC;
+       DATEDIFF(YEAR,  HireDate, GETDATE()) AS YearsBoundaries,    -- 2024-12-31 to 2025-01-01 = 1 year!
+       DATEDIFF(MONTH, HireDate, GETDATE()) AS MonthsBoundaries,
+       DATEDIFF(YEAR, HireDate, GETDATE())
+         - CASE WHEN DATEADD(YEAR, DATEDIFF(YEAR, HireDate, GETDATE()), HireDate) > GETDATE()
+                THEN 1 ELSE 0 END           AS FullYearsOfService  -- matches MySQL TIMESTAMPDIFF
+FROM Emp
+ORDER BY FullYearsOfService DESC;
 
 -- ---------------------------------------------------------------------
--- 13. DATE_SUB and DATE_ADD with INTERVAL
+-- 13. DATEADD  (replaces DATE_ADD and DATE_SUB; subtract with a negative number)
 -- ---------------------------------------------------------------------
 SELECT FirstName, HireDate
-FROM Employees
-WHERE HireDate >= DATE_SUB(CURDATE(), INTERVAL 3 YEAR);     -- hired in last 3 years
+FROM Emp
+WHERE HireDate >= DATEADD(YEAR, -3, CAST(GETDATE() AS DATE));      -- hired in last 3 years
 
 SELECT FirstName, HireDate,
-       DATE_ADD(HireDate, INTERVAL 1 YEAR) AS FirstAnniversary
-FROM Employees;
+       DATEADD(YEAR, 1, HireDate) AS FirstAnniversary
+FROM Emp;
 
 -- ---------------------------------------------------------------------
--- 14. MONTHNAME
+-- 14. DATENAME  (replaces MONTHNAME / DAYNAME)
 -- ---------------------------------------------------------------------
-SELECT FirstName, HireDate, MONTHNAME(HireDate) AS HireMonth, DAYNAME(HireDate) AS HireDay
-FROM Employees;
+SELECT FirstName, HireDate,
+       DATENAME(MONTH, HireDate)   AS HireMonth,
+       DATENAME(WEEKDAY, HireDate) AS HireDay
+FROM Emp;
 
 -- ---------------------------------------------------------------------
--- 15. DATE_FORMAT
+-- 15. FORMAT  (replaces DATE_FORMAT; uses .NET patterns, MM = month, mm = minute)
 -- ---------------------------------------------------------------------
 SELECT FirstName,
-       DATE_FORMAT(HireDate, '%d-%b-%Y') AS Pretty,        -- 15-Mar-2021
-       DATE_FORMAT(HireDate, '%d/%m/%Y') AS DDMMYYYY       -- 15/03/2021
-FROM Employees;
+       FORMAT(HireDate, 'dd-MMM-yyyy') AS Pretty,        -- 15-Mar-2021
+       FORMAT(HireDate, 'dd/MM/yyyy')  AS DDMMYYYY,      -- 15/03/2021
+       CONVERT(VARCHAR(10), HireDate, 103) AS DDMMYYYY2  -- older style, faster on big tables
+FROM Emp;
 
 -- ---------------------------------------------------------------------
--- 16. LAST_DAY
+-- 16. EOMONTH  (replaces LAST_DAY)
 -- ---------------------------------------------------------------------
-SELECT FirstName, HireDate, LAST_DAY(HireDate) AS MonthEnd FROM Employees;
+SELECT FirstName, HireDate, EOMONTH(HireDate) AS MonthEnd FROM Emp;
 
 -- ---------------------------------------------------------------------
--- 17. CAST  (no TRY_CAST in MySQL)
+-- 17. CAST and TRY_CAST  (TRY_CAST exists here, unlike MySQL)
 -- ---------------------------------------------------------------------
-SELECT Salary, CAST(Salary AS SIGNED) AS SalaryInt FROM Employees;
-SELECT CAST('abc' AS SIGNED);       -- gives 0 and a warning, not an error
-SHOW WARNINGS;
+SELECT Salary, CAST(Salary AS INT) AS SalaryInt FROM Emp;          -- truncates decimals
+-- SELECT CAST('abc' AS INT);       -- ERROR: conversion failed (MySQL only warned)
+SELECT TRY_CAST('abc' AS INT) AS SafeResult;                       -- NULL, no error
 SELECT CAST('2024-05-01' AS DATE);
+SELECT TRY_CONVERT(DATE, '2024-13-45') AS BadDate;                 -- NULL
 
 -- ---------------------------------------------------------------------
--- 18. IF()  (and CASE for more than two outcomes)
+-- 18. IIF()  (and CASE for more than two outcomes)
 -- ---------------------------------------------------------------------
 SELECT FirstName, Salary,
-       IF(Salary > 60000, 'Yes', 'No') AS HighEarner,
-       IF(IsActive, 'Active', 'Inactive') AS Status
-FROM Employees;
+       IIF(Salary > 60000, 'Yes', 'No')          AS HighEarner,
+       IIF(IsActive = 1, 'Active', 'Inactive')   AS Status      -- BIT needs "= 1"
+FROM Emp;
 
 SELECT FirstName, Salary,
        CASE
@@ -160,106 +182,126 @@ SELECT FirstName, Salary,
            WHEN Salary <= 65000  THEN 'Mid'
            ELSE 'High'
        END AS SalaryBand
-FROM Employees;
+FROM Emp;
 
 -- ---------------------------------------------------------------------
--- 19. RENAME COLUMN (plus ADD / MODIFY / DROP COLUMN, RENAME TABLE)
+-- 19. ADD / sp_rename / ALTER COLUMN / DROP COLUMN
 -- ---------------------------------------------------------------------
-ALTER TABLE Employees ADD COLUMN Phone VARCHAR(15);
-ALTER TABLE Employees RENAME COLUMN Phone TO Mobile;
-ALTER TABLE Employees MODIFY COLUMN Mobile VARCHAR(20);
-DESCRIBE Employees;
-ALTER TABLE Employees DROP COLUMN Mobile;
+ALTER TABLE Emp ADD Phone VARCHAR(15);                  -- no COLUMN keyword in ADD
+GO
+EXEC sp_rename 'Emp.Phone', 'Mobile', 'COLUMN';         -- replaces RENAME COLUMN
+GO
+ALTER TABLE Emp ALTER COLUMN Mobile VARCHAR(20);        -- replaces MODIFY COLUMN
+GO
+EXEC sp_help 'Emp';                                     -- replaces DESCRIBE
+GO
+ALTER TABLE Emp DROP COLUMN Mobile;
+GO
 
-RENAME TABLE Demo TO DemoRenamed;
-RENAME TABLE DemoRenamed TO Demo;
+EXEC sp_rename 'Demo', 'DemoRenamed';                   -- replaces RENAME TABLE
+EXEC sp_rename 'DemoRenamed', 'Demo';
+GO
 
 -- ---------------------------------------------------------------------
--- 20. CREATE TABLE ... AS SELECT  (copy a table)
+-- 20. SELECT ... INTO  (replaces CREATE TABLE ... AS SELECT)
 -- ---------------------------------------------------------------------
-CREATE TABLE EmpBackup AS SELECT * FROM Employees;     -- data copied, keys NOT copied
+SELECT * INTO EmpBackup FROM Emp;                       -- data copied, keys NOT copied
 SELECT COUNT(*) FROM EmpBackup;
-CREATE TABLE EmpStructure LIKE Employees;              -- structure and keys, no data
+SELECT * INTO EmpStructure FROM Emp WHERE 1 = 0;        -- structure only (no LIKE in SQL Server)
 DROP TABLE EmpBackup;
 DROP TABLE EmpStructure;
+GO
 
 -- ---------------------------------------------------------------------
--- 21. START TRANSACTION, SAVEPOINT, ROLLBACK, COMMIT
+-- 21. BEGIN TRANSACTION, SAVE TRANSACTION, ROLLBACK, COMMIT
 -- ---------------------------------------------------------------------
-SET SQL_SAFE_UPDATES = 1;               -- Workbench default; keep it on
+-- No Safe Updates mode in SSMS: an UPDATE or DELETE without WHERE runs on every row.
+-- Always check your WHERE clause, or wrap it in a transaction first.
 
-START TRANSACTION;
-UPDATE Employees SET Salary = Salary * 1.10 WHERE DeptID = 2;
-SAVEPOINT sp1;
-DELETE FROM Employees WHERE EmpID = 8;
-SELECT COUNT(*) FROM Employees;         -- one row fewer
-ROLLBACK TO SAVEPOINT sp1;              -- undoes only the delete
-SELECT COUNT(*) FROM Employees;         -- back to full count
-ROLLBACK;                               -- undoes the raise too
-SELECT FirstName, Salary FROM Employees WHERE DeptID = 2;   -- original salaries
+BEGIN TRANSACTION;
+UPDATE Emp SET Salary = Salary * 1.10 WHERE DeptID = 2;
+SAVE TRANSACTION sp1;                                   -- replaces SAVEPOINT
+DELETE FROM Emp WHERE EmpID = 8;
+SELECT COUNT(*) FROM Emp;                               -- one row fewer
+ROLLBACK TRANSACTION sp1;                               -- undoes only the delete
+SELECT COUNT(*) FROM Emp;                               -- back to full count
+ROLLBACK TRANSACTION;                                   -- undoes the raise too
+SELECT FirstName, Salary FROM Emp WHERE DeptID = 2;     -- original salaries
+SELECT @@TRANCOUNT AS OpenTransactions;                 -- 0 means nothing is left open
 
-START TRANSACTION;
-UPDATE Employees SET Salary = Salary + 1000 WHERE EmpID = 1;
-COMMIT;                                 -- permanent now
-UPDATE Employees SET Salary = Salary - 1000 WHERE EmpID = 1;   -- manual undo
+BEGIN TRANSACTION;
+UPDATE Emp SET Salary = Salary + 1000 WHERE EmpID = 1;
+COMMIT TRANSACTION;                                     -- permanent now
+UPDATE Emp SET Salary = Salary - 1000 WHERE EmpID = 1;  -- manual undo
 
--- Safe Updates demo: this fails with error 1175 (Email is not a key column)
--- UPDATE Employees SET Email = 'x@corp.com' WHERE Email IS NULL;
--- Fix: use the primary key
-UPDATE Employees SET Email = 'meera@corp.com' WHERE EmpID = 3;
-UPDATE Employees SET Email = NULL WHERE EmpID = 3;             -- revert
+-- Email is NOT NULL in Emp, so the "set Email to NULL" demo from the MySQL file is skipped.
+-- Instead, see what happens when a statement fails inside a transaction:
+SET XACT_ABORT ON;                                      -- any error rolls back the whole transaction
+BEGIN TRANSACTION;
+UPDATE Emp SET Salary = 50000 WHERE EmpID = 1;
+-- UPDATE Emp SET Salary = -5 WHERE EmpID = 2;          -- uncomment to see CHECK fail and roll back all
+COMMIT TRANSACTION;
+SET XACT_ABORT OFF;
+UPDATE Emp SET Salary = 55000 WHERE EmpID = 1;          -- restore original
 
 -- ---------------------------------------------------------------------
--- 22. Unicode: utf8mb4
+-- 22. Unicode: NVARCHAR and the N prefix  (replaces utf8mb4)
 -- ---------------------------------------------------------------------
 CREATE TABLE UniDemo (
-    ID   INT AUTO_INCREMENT PRIMARY KEY,
-    Name VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    ID   INT IDENTITY(1,1) PRIMARY KEY,
+    Name NVARCHAR(50)
 );
-INSERT INTO UniDemo (Name) VALUES ('Asha'), ('आशा पाटील');
-SELECT Name, CHAR_LENGTH(Name) AS Chars, LENGTH(Name) AS Bytes FROM UniDemo;
-SHOW CHARACTER SET LIKE 'utf8mb4';
+INSERT INTO UniDemo (Name) VALUES (N'Asha'), (N'आशा पाटील');   -- N prefix is required, or you get ????
+SELECT Name, LEN(Name) AS Chars, DATALENGTH(Name) AS Bytes FROM UniDemo;   -- 2 bytes per char
+SELECT SERVERPROPERTY('Collation') AS ServerCollation;                     -- replaces SHOW CHARACTER SET
 DROP TABLE UniDemo;
+GO
 
 -- ---------------------------------------------------------------------
--- 23. DROP CHECK / DROP INDEX / DROP FOREIGN KEY
+-- 23. DROP CONSTRAINT  (one syntax for CHECK, UNIQUE and FOREIGN KEY)
 -- ---------------------------------------------------------------------
 -- CHECK
-ALTER TABLE Employees ADD CONSTRAINT chk_salary_max CHECK (Salary <= 500000);
--- INSERT INTO Employees (FirstName, LastName, Salary, DeptID) VALUES ('Big','Pay',900000,1);  -- fails
-ALTER TABLE Employees DROP CHECK chk_salary_max;
+ALTER TABLE Emp ADD CONSTRAINT chk_salary_max CHECK (Salary <= 500000);
+-- INSERT INTO Emp (FirstName, LastName, Email, Salary, DeptID) VALUES ('Big','Pay','big@corp.com',900000,1);  -- fails
+ALTER TABLE Emp DROP CONSTRAINT chk_salary_max;
+GO
 
--- UNIQUE (stored as an index; MySQL allows many NULLs in a unique column)
-ALTER TABLE Employees ADD CONSTRAINT uq_email UNIQUE (Email);
-SHOW INDEX FROM Employees;
-ALTER TABLE Employees DROP INDEX uq_email;
+-- UNIQUE (SQL Server allows only ONE NULL in a unique column; MySQL allows many)
+ALTER TABLE Emp ADD CONSTRAINT uq_email UNIQUE (Email);
+EXEC sp_helpindex 'Emp';                                -- replaces SHOW INDEX
+ALTER TABLE Emp DROP CONSTRAINT uq_email;
+GO
 
 -- FOREIGN KEY
 CREATE TABLE Projects (
-    ProjectID   INT AUTO_INCREMENT PRIMARY KEY,
+    ProjectID   INT IDENTITY(1,1) PRIMARY KEY,
     ProjectName VARCHAR(60) NOT NULL,
     DeptID      INT,
     CONSTRAINT fk_proj_dept FOREIGN KEY (DeptID) REFERENCES Departments(DeptID)
 );
+GO
 INSERT INTO Projects (ProjectName, DeptID) VALUES ('Payroll Revamp', 3);
 -- INSERT INTO Projects (ProjectName, DeptID) VALUES ('Ghost', 99);   -- fails: no dept 99
-ALTER TABLE Projects DROP FOREIGN KEY fk_proj_dept;
+ALTER TABLE Projects DROP CONSTRAINT fk_proj_dept;      -- replaces DROP FOREIGN KEY
 INSERT INTO Projects (ProjectName, DeptID) VALUES ('Ghost', 99);       -- now allowed
 DROP TABLE Projects;
+GO
 
 -- ---------------------------------------------------------------------
 -- Cleanup
 -- ---------------------------------------------------------------------
 DROP TABLE IF EXISTS Demo;
+GO
 
 -- ---------------------------------------------------------------------
 -- Mini challenges (write these yourself, no hints)
 -- ---------------------------------------------------------------------
--- A. Top 3 highest-paid employees: full name (CONCAT), annual salary, alias with backticks.
--- B. Page 2 of employees sorted by hire date, 4 per page.
--- C. Employee name, years of service (TIMESTAMPDIFF), hire date as 'Mar 2021' (DATE_FORMAT).
--- D. Hired in the last 5 years (DATE_SUB), salary shown as 0 when NULL (IFNULL).
--- E. Email domain only (LOCATE + SUBSTRING), with 'unknown' when missing (COALESCE).
--- F. Label each employee 'Senior' if service >= 4 years else 'Junior' using IF().
--- G. In a transaction: raise HR salaries by 8%, SAVEPOINT, delete Sales staff, rollback to savepoint, commit.
--- H. Add a named CHECK on Salary, test it, then DROP CHECK.
+-- A. Top 3 highest-paid employees: full name (CONCAT), annual salary, alias with [brackets].
+-- B. Page 2 of employees sorted by hire date, 4 per page (OFFSET/FETCH).
+-- C. Employee name, years of service (DATEDIFF), hire date as 'Mar 2021' (FORMAT).
+-- D. Hired in the last 5 years (DATEADD), salary shown as 0 when NULL (ISNULL).
+-- E. Email domain only (CHARINDEX + SUBSTRING), with 'unknown' when missing (COALESCE).
+-- F. Label each employee 'Senior' if service >= 4 years else 'Junior' using IIF().
+-- G. In a transaction: raise HR salaries by 8%, SAVE TRANSACTION, delete Sales staff,
+--    rollback to the savepoint, commit.
+-- H. Add a named CHECK on Salary, test it, then DROP CONSTRAINT.
